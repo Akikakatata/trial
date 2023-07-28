@@ -3,10 +3,10 @@ import os
 import random
 import socket
 import sys
+from lib.player_base import Player, PlayerShip
+
 
 sys.path.append(os.getcwd())
-
-from lib.player_base import Player, PlayerShip
 
 
 class StrategicPlayer(Player):
@@ -16,7 +16,7 @@ class StrategicPlayer(Player):
 
         # フィールドを2x2の配列として持っている．
         self.field = [[i, j] for i in range(Player.FIELD_SIZE)
-                      for j in range(Player.FIELD_SIZE)
+                      for j in range(Player.FIELD_SIZE)]
 
         # List of possible ship positions for each ship
         self.possible_positions = {'w': [], 'c': [], 's': []}
@@ -47,7 +47,8 @@ class StrategicPlayer(Player):
             self.ships[ship_name] = PlayerShip(ship_name, position)
 
     def validate_ship_positions(self):
-        # Check if any two ships have overlapping positions or are diagonally adjacent
+        # Check if any two ships have overlapping positions
+        # or are diagonally adjacent
         for i in range(len(self.possible_positions)):
             for j in range(i + 1, len(self.possible_positions)):
                 pos1 = self.possible_positions[i]
@@ -68,7 +69,7 @@ class StrategicPlayer(Player):
         x2, y2 = pos2
 
         return abs(x1 - x2) == 1 and abs(y1 - y2) == 1
-    
+
     def update(self, message):
         msg = json.loads(message)
 
@@ -78,7 +79,8 @@ class StrategicPlayer(Player):
             self.update_possible_positions(ship_name, new_position)
 
     def update_possible_positions_after_hit(self, ship_name, attack_coords):
-        # Update the possible positions for the ship based on the attack coordinates
+        # Update the possible positions for the ship based
+        # on the attack coordinates
         possible_positions = []
         for position in self.possible_positions[ship_name]:
             if self.is_within_attack_range(position, attack_coords):
@@ -90,9 +92,6 @@ class StrategicPlayer(Player):
         # Update the possible positions for the ship with the new information
         self.possible_positions[ship_name] = new_positions
         self.intersect_possible_positions(ship_name)
-
-    def intersect_possible_positions(self, ship_name):
-        # Retain only the positions that exist in both sets of information
         if ship_name in self.possible_positions:
             self.possible_positions[ship_name] = list(set(self.possible_positions[ship_name]) & set(new_positions))
 
@@ -122,6 +121,7 @@ class StrategicPlayer(Player):
         self.prev_attack_coords = attack_coords
         return attack_coords
 
+
 def main(host, port, seed=0):
     assert isinstance(host, str) and isinstance(port, int)
 
@@ -150,9 +150,9 @@ def main(host, port, seed=0):
                 elif info == "even":
                     break
                 elif not info:
-                    continue 
+                    continue
                 else:
-                    print(info) 
+                    print(info)
                     raise RuntimeError("unknown information "+info)
 
 
