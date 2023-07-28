@@ -121,6 +121,39 @@ class StrategicPlayer(Player):
         self.prev_attack_coords = attack_coords
         return attack_coords
 
+def main(host, port, seed=0):
+    assert isinstance(host, str) and isinstance(port, int)
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.connect((host, port))
+        with sock.makefile(mode='rw', buffering=1) as sockfile:
+            get_msg = sockfile.readline()
+            print(get_msg)
+            player = StrategicPlayer()
+            sockfile.write(player.initial_condition()+'\n')
+
+            while True:
+                info = sockfile.readline().rstrip()
+                print(info)
+                if info == "your turn":
+                    sockfile.write(player.action()+'\n')
+                    get_msg = sockfile.readline()
+                    player.update(get_msg)
+                elif info == "waiting":
+                    get_msg = sockfile.readline()
+                    player.update(get_msg)
+                elif info == "you win":
+                    break
+                elif info == "you lose":
+                    break
+                elif info == "even":
+                    break
+                elif not info:
+                    continue 
+                else:
+                    print(info) 
+                    raise RuntimeError("unknown information "+info)
+
 
 if __name__ == '__main__':
     import argparse
