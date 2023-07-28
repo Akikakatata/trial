@@ -14,8 +14,9 @@ class StrategicPlayer(Player):
     def __init__(self, seed=0):
         random.seed(seed)
 
-        # Field size
-        self.FIELD_SIZE = Player.FIELD_SIZE
+        # フィールドを2x2の配列として持っている．
+        self.field = [[i, j] for i in range(Player.FIELD_SIZE)
+                      for j in range(Player.FIELD_SIZE)
 
         # List of possible ship positions for each ship
         self.possible_positions = {'w': [], 'c': [], 's': []}
