@@ -107,7 +107,7 @@ def main(host, port, seed=0):
             get_msg = sockfile.readline()
             print(get_msg)
             player = StrategicPlayer(seed=seed)
-            sockfile.write(player.initial_condition(True) + '\n')
+            sockfile.write(player.initial_condition() + '\n')
 
             while True:
                 info = sockfile.readline().rstrip()
