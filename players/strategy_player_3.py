@@ -91,12 +91,13 @@ class StrategicPlayer(Player):
                     return json.dumps(self.move(ship.type, to))
 
         elif act == "attack":
-            to = random.choice(self.opppnent_possible_positions)
+            ship_type = random.choice(list(self.opppnent_possible_positions.keys()))
+            to = random.choice(self.opppnent_possible_positions[ship_type])
             while not self.can_attack(to):
-                to = random.choice(self.opppnent_possible_positions)
+                ship_type = random.choice(list(self.opppnent_possible_positions.keys()))
+                to = random.choice(self.opppnent_possible_positions[ship_type])
 
             return json.dumps(self.attack(to))
-
 
 def main(host, port, seed=0):
     assert isinstance(host, str) and isinstance(port, int)
