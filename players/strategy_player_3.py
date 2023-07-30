@@ -3,123 +3,99 @@ import os
 import random
 import socket
 import sys
-from lib.player_base import Player, PlayerShip
-
-
 sys.path.append(os.getcwd())
-
+from lib.player_base import Player, PlayerShip
 
 class StrategicPlayer(Player):
 
     def __init__(self, seed=0):
         random.seed(seed)
 
-        # フィールドを2x2の配列として持っている．
+        # Initialize the field as a 2x2 grid
         self.field = [[i, j] for i in range(Player.FIELD_SIZE)
                       for j in range(Player.FIELD_SIZE)]
 
-        # List of possible ship positions for each ship
-        self.possible_positions = {'w': [], 'c': [], 's': []}
-
-        # Initialize ships and their positions
-        self.initialize_ships()
-
-        # Initialize previous attack coordinates
-        self.prev_attack_coords = None
-
-    def initialize_ships(self):
-        # Randomly position the ships
         while True:
-            self.possible_positions = {'w': [], 'c': [], 's': []}
-            self.ships = {}
+            # Randomly select three positions for the ships
+            ps = random.sample(self.field, 3)
+            self.positions = {'w': ps[0], 'c': ps[1], 's': ps[2]}
 
-            # Generate possible positions for each ship
-            for ship_name in self.possible_positions:
-                self.possible_positions[ship_name] = random.sample(
-                    self.field, 3)
+            # Validate that the ships are not in the same row, column, or diagonally adjacent
+            validation = "fit"
+            for i in range(len(self.positions)):
+                for j in range(i + 1, len(self.positions)):
+                    pos1 = self.positions[list(self.positions.keys())[i]]
+                    pos2 = self.positions[list(self.positions.keys())[j]]
+                    x1, y1 = pos1
+                    x2, y2 = pos2
 
-            # Validate ship positions
-            if self.validate_ship_positions():
+                    if ((x1 == x2) or (y1 == y2)) or (abs(x1 - x2) <= 1 and abs(y1 - y2) <= 1):
+                        validation = "unfit"
+                        break  # No need to continue checking if one pair is unfit
+
+                if validation == "unfit":
+                    break
+
+            if validation == "fit":
+                super().__init__(self.positions)
                 break
 
-        # Create ship objects
-        for ship_name, position in self.possible_positions.items():
-            self.ships[ship_name] = PlayerShip(ship_name, position)
+        self.opppnent_possible_positions = {
+            's': [pos.copy() for pos in self.field],
+            'w': [pos.copy() for pos in self.field],
+            'c': [pos.copy() for pos in self.field]
+        }
 
-    def validate_ship_positions(self):
-        # Check if any two ships have overlapping positions
-        # or are diagonally adjacent
-        for i in range(len(self.possible_positions)):
-            for j in range(i + 1, len(self.possible_positions)):
-                pos1 = self.possible_positions[i]
-                pos2 = self.possible_positions[j]
+    def update_self_opponent_possible_positions(self, json_str):
+        json_data = json.loads(json_str)
+        if "result" in json_data:
+            result = json_data["result"]
+            if "attacked" in result:
+                attacked_pos = result["attacked"]["position"]
+                # Calculate the 9 cells around the attacked position
+                around_attacked = [(x, y) for x in range(attacked_pos[0] - 1, attacked_pos[0] + 2)
+                                   for y in range(attacked_pos[1] - 1, attacked_pos[1] + 2)
+                                   if Player.in_field__((x, y))]
+                # Find the common positions between the previous self.opppnent_possible_positions
+                # and the 9 cells around the attacked position
+                self.opppnent_possible_positions = {k: [pos for pos in v if pos in around_attacked]
+                                                    for k, v in self.opppnent_possible_positions.items()}
+            elif "moved" in result:
+                num_arrows = result["moved"]["distance"]
+                # Update possible positions based on the direction and number of arrows
+                for k, v in self.opppnent_possible_positions.items():
+                    for pos in v:
+                        pos[0] += num_arrows[0]
+                        pos[1] += num_arrows[1]
 
-                if self.overlap(pos1, pos2) or self.diagonal_adjacency(pos1, pos2):
-                    return False
+    def action(self):
+        act = random.choice(["move", "attack"])
 
-        return True
+        if act == "move":
+            ship = random.choice(list(self.ships.values()))
+            while True:
+                to = random.choice(self.field)
+                validation = "fit"
+                for i in range(len(self.positions)):
+                    for j in range(i + 1, len(self.positions)):
+                        pos1 = list(to)
+                        pos2 = self.positions[list(self.positions.keys())[j]]
+                        x1, y1 = pos1
+                        x2, y2 = pos2
+                        if ((x1 == x2) or (y1 == y2)) or (abs(x1 - x2) <= 1 and abs(y1 - y2) <= 1):
+                            validation = "unfit"
+                            break
+                    if validation == "unfit":
+                        break
+                if validation == "fit":
+                    return json.dumps(self.move(ship.type, to))
 
-    def overlap(self, pos1, pos2):
-        # Check if two positions overlap
-        return pos1 == pos2
+        elif act == "attack":
+            to = random.choice(self.opppnent_possible_positions)
+            while not self.can_attack(to):
+                to = random.choice(self.opppnent_possible_positions)
 
-    def diagonal_adjacency(self, pos1, pos2):
-        # Check if two positions are diagonally adjacent
-        x1, y1 = pos1
-        x2, y2 = pos2
-
-        return abs(x1 - x2) == 1 and abs(y1 - y2) == 1
-
-    def update(self, message):
-        msg = json.loads(message)
-
-        if 'move' in msg:
-            ship_name = msg['move']['ship']
-            new_position = tuple(msg['move']['to'])
-            self.update_possible_positions(ship_name, new_position)
-
-    def update_possible_positions_after_hit(self, ship_name, attack_coords):
-        # Update the possible positions for the ship based
-        # on the attack coordinates
-        possible_positions = []
-        for position in self.possible_positions[ship_name]:
-            if self.is_within_attack_range(position, attack_coords):
-                possible_positions.append(position)
-
-        self.possible_positions[ship_name] = possible_positions
-
-    def update_possible_positions(self, ship_name, new_positions):
-        # Update the possible positions for the ship with the new information
-        self.possible_positions[ship_name] = new_positions
-        self.intersect_possible_positions(ship_name)
-        if ship_name in self.possible_positions:
-            self.possible_positions[ship_name] = list(set(self.possible_positions[ship_name]) & set(new_positions))
-
-    def is_within_attack_range(self, position, attack_coords):
-        # Check if a position is within the attack range of the given attack coordinates
-        x, y = position
-        for attack_coord in attack_coords:
-            attack_x, attack_y = attack_coord
-            if (
-                abs(x - attack_x) <= 1 and
-                abs(y - attack_y) <= 1 and
-                (x, y) != attack_coord
-            ):
-                return True
-
-        return False
-
-    def attack(self):
-        if self.prev_attack_coords is not None:
-            # Update possible opponent positions based on the previous attack
-            for ship_name in self.possible_positions:
-                self.update_possible_positions_after_hit(ship_name, self.prev_attack_coords)
-
-        # Select a random position for attack
-        attack_coords = random.choice(self.field)
-
-        self.prev_attack_coords = attack_coords
-        return attack_coords
+            return json.dumps(self.attack(to))
 
 
 def main(host, port, seed=0):
@@ -130,19 +106,16 @@ def main(host, port, seed=0):
         with sock.makefile(mode='rw', buffering=1) as sockfile:
             get_msg = sockfile.readline()
             print(get_msg)
-            player = StrategicPlayer()
-            sockfile.write(player.initial_condition()+'\n')
+            player = StrategicPlayer(seed=seed)
+            sockfile.write(player.initial_condition(True) + '\n')
 
             while True:
                 info = sockfile.readline().rstrip()
                 print(info)
                 if info == "your turn":
-                    sockfile.write(player.action()+'\n')
-                    get_msg = sockfile.readline()
-                    player.update(get_msg)
+                    sockfile.write(player.action() + '\n')
                 elif info == "waiting":
-                    get_msg = sockfile.readline()
-                    player.update(get_msg)
+                    pass
                 elif info == "you win":
                     break
                 elif info == "you lose":
@@ -153,7 +126,13 @@ def main(host, port, seed=0):
                     continue
                 else:
                     print(info)
-                    raise RuntimeError("unknown information "+info)
+                    raise RuntimeError("unknown information " + info)
+
+                # Receive opponent's action and update player's data
+                get_msg = sockfile.readline()
+                player.update_self_opponent_possible_positions(get_msg)
+
+    print("Game over.")
 
 
 if __name__ == '__main__':
